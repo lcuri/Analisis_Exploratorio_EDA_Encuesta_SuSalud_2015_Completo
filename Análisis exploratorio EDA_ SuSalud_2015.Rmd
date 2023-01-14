@@ -1,0 +1,391 @@
+---
+title: "Análisis estadístico encuesta - Susalud 2015"
+author: "Luis Curi"
+date: 
+output:
+  html_document: 
+    toc: yes
+    toc_float : true
+    fig_width: 15
+    fig_height: 9
+    number_sections: true
+    code_folding: hide
+---
+```{r echo=FALSE, out.width='60%', fig.align='center'}
+knitr::include_graphics("imagen1.png")
+```
+
+
+
+```{r message=FALSE, include=FALSE}
+#Llamado de librerias
+library("haven")
+library("curl")
+library("dplyr")
+library("DescTools")
+library("ggplot2")
+library("summarytools")
+
+```
+# *Tratamiento de datos*
+## **Características generales**
+
+```{r message=FALSE}
+
+#Importación de la base de datos
+
+base<-read_sav("http://portal.susalud.gob.pe/wp-content/uploads/archivo/base-de-datos/2015/CUESTIONARIO%2002%20-%20CAPITULOS.sav")
+
+```  
+
+```{r message=FALSE}
+#Cantidad de filas y columnas
+dim(base)
+```
+La encuesta mostrada a continuación fue realizada a **5067 profesionales de la salud** en el año 2015 por la Superintendendia Nacional de Salud, la cual involucra médicos y enfermeras de ambos sexos. La información contenida en el dataset cuenta con **270 variables**, mostrando a continuacion una muestra de la base de datos: 
+```{r message=FALSE}
+##Diez Primeras columnas y filas
+base[1:10,1:10] 
+```
+ 
+
+## **Selección de variables**
+
+A continuación se muestra las variables relevantes para nuestro caso de estudio:
+
+Estas son:
+
+**Profesión** = C2P1,  **Sexo** = C2P4, **Ingresos** = C2P28, **Edad** = C2P2EDAD, **Universidad de estudios** = C2P11,  **Número de dependientes** = C2P9, **Tipo de contrato** =  C2P7, **Realiza labor docente adicional** =  C2P26, **Horas de trabajo por semana** =  C2P27, **Nivel de satisfacción** =  C2P29
+                   
+```{r message=FALSE}
+###Selección de variables de estudio
+base1<-select(base,C2P1,C2P4,C2P28,C2P2EDAD,C2P11,C2P9,C2P7,C2P26,C2P27,C2P29)
+
+##cambiar de nombre a las variables
+base1 <-rename(base1,Profesión=C2P1,Sexo=C2P4,Ingresos=C2P28,Edad=C2P2EDAD,Universidad_de_estudios=C2P11,Número_de_dependientes=C2P9,Tipo_de_contrato=C2P7,Realiza_labor_docente_adicional=C2P26,Horas_de_trabajo_por_semana=C2P27,Nivel_de_satisfacción=C2P29)
+summary(base1)
+
+```  
+Se observa un resúmen estadístico de las 10 variables seleccionadas, este resumen contempla promedios, mediana, cuartiles, minimos y maximos. 
+
+Tambien podemos observar la existencia de variables cualitativas expresadas de forma numérica, las cuales a continuación se identifican y convierten a su tipo original.
+
+## **Filtrado y conversión de datos**
+
+Para el análisis solo se debe considerar la profesion médicos, por lo tanto la cantidad de filas o encuestas realizadas se reduce de 5067 a 2219, y la cantidad de variables de 270 a 10. Información con la cual se trabajará.
+```{r message=FALSE}
+##Filtrar datos solo con profesión médicos
+base2<-subset(base1, Profesión == 1)
+
+##El dataframe tiene 2219 filas y 10 columnas
+dim(base2) 
+```  
+
+Ahora se realiza la conversión de datos cualitativos, ya que estos en su estado original se encuentran como numéricos
+```{r message=FALSE}
+##Convirtiendo las variables 
+base3<-base2
+base3$Profesión<-factor(base3$Profesión,levels=c(1),labels=c("Médico"))
+base3$Sexo<-factor(base3$Sexo,levels=c(1,2),labels=c("Hombre", "Mujer"))
+base3$Ingresos<-factor(base3$Ingresos,levels=c(1,2,3,4,5,6,7),labels=c("Menor a s/. 1000", "DE s/. 1000 a s/. 2000", "DE s/. 2001 a s/. 3000", "DE s/. 3001 a s/. 4000", "DE s/. 4001 a s/. 5000", "Mas de s/. 5000", "NO RESPONDE"))
+base3$Universidad_de_estudios<-factor(base3$Universidad_de_estudios,levels=c(1,2,3,4,5,6,7,8),labels=c("Univ.Nacional Mayor de San Marcos", "Univ. Nacional Federico Villarreal", "Univ. Nacional de Trujillo", "Univ. Nacional del Centro", "Univ.Nacional San Luis Gonzaga de Ica", "Univ. Particular Cayetano Heredia", "Univ. Particular San Martin de Porres", "Otro"))
+base3$Tipo_de_contrato<-factor(base3$Tipo_de_contrato,levels=c(1,2,3,4,5,6),labels=c("Locaciòn de servicios (Honorarios profesionales)", "Contrato Administrativo de Servicios (CAS)", "Contrato a plazo fijo (sujeto a modalidad)", "Nombrado, permanente", "Plazo indeterminado o indefinido (D.S.728)", "Otro"))
+base3$Realiza_labor_docente_adicional<-factor(base3$Realiza_labor_docente_adicional,levels=c(1,2),labels=c("Si", "No"))
+base3$Nivel_de_satisfacción<-factor(base3$Nivel_de_satisfacción,levels=c(0,1,2,3,4,5,6),labels=c("NO SABE/NO RESPONDE", "Muy insatisfecho/a", "Insatisfecho/a", "Ni satisfecho/a  Ni insatisfecho/a", "Satisfecho/a", "Muy satisfecho/a","NO SABE/NO RESPONDE"))
+
+summary(base3)
+
+``` 
+Se observa un resúmen estadístico de las 10 variables seleccionadas, este resumen contempla promedios, mediana, cuartiles, minimos y maximos. 
+
+# *Resolución de preguntas del caso*
+
+## **Identificar el tipo de variable**
+
+### Variables cualitativas
+La variable sexo corresponde a una cualitativa dicotómica, Ingresos representa una cualitativa ordinal, universidad de estudios corresponde a cualitativa nominal, tipo de contrato tambien corresponde a una cualitativa nominal, Realiza labor docente adicional correspnde a una cualitativa dicotómica y nivel de satisfacción corresponde a cualitativa ordinal.
+```{r message=FALSE}
+cuali <- select(base3,Profesión, Sexo,Ingresos, Universidad_de_estudios, Tipo_de_contrato, Realiza_labor_docente_adicional,Nivel_de_satisfacción )##ingresos es una variable cuanti, pero veo que está expresado como cualitativa, de ser así. ¿no responde deberia considerarse como na o no deberia considerarse en el estudio? por que no corresponderia a ninguna escala ordinal.
+summary(cuali)
+```  
+
+
+### Variables cuantitativas
+La variable edad corresponde a cuantitativa discreta, número de dependientes es una variable cuantitativa discreta, horas de trabajo por semana corresponde a cuantitativa discreta.
+```{r message=FALSE}
+cuanti <- select(base3, Edad,Número_de_dependientes,Horas_de_trabajo_por_semana )
+summary(cuanti)
+```  
+
+
+## **Tabla de frecuencias y gráfico: Variable cualitativa**
+### variable sexo
+```{r message=FALSE}
+freq(base3$Sexo)
+varsexo<-table(base3$Sexo)
+pie(varsexo, 
+    main="Proporción de Hombres Vs Mujeres")
+```  
+
+### variable Ingresos
+```{r message=FALSE}
+freq(base3$Ingresos)
+plot(base3$Ingresos,main="Gráfica de ingresos")
+``` 
+
+### variable Universidad de estudios
+```{r message=FALSE}
+freq(base3$Universidad_de_estudios)
+plot(base3$Universidad_de_estudios,main="Gráfica de universidad de estudios")
+``` 
+
+### variable Tipo de contrato
+```{r message=FALSE}
+freq(base3$Tipo_de_contrato)
+plot(base3$Tipo_de_contrato ,main="Gráfica de tipo de contrato")
+
+``` 
+
+### variable Realiza labor docente adicional
+```{r message=FALSE}
+freq(base3$Realiza_labor_docente_adicional)
+varadicional<-table(base3$Realiza_labor_docente_adicional)
+pie(varadicional, 
+    main="Proporción sobre si realiza labor de docente")
+``` 
+
+### variable Nivel de satisfacción
+```{r message=FALSE}
+
+freq(base3$Nivel_de_satisfacción)
+plot(base3$Nivel_de_satisfacción,main="Gráfica de nivel de satisfacción")
+``` 
+
+## **Tabla de frecuencias: Variable cuantitativa**
+### variable Edad
+```{r message=FALSE}
+Freq(base3$Edad, breaks=nclass.Sturges(base3$Edad))
+``` 
+
+### variable Número de dependientes
+```{r message=FALSE}
+Freq(base3$Número_de_dependientes, breaks=nclass.Sturges(base3$Número_de_dependientes))
+``` 
+
+### variable Horas de trabajo por semana
+```{r message=FALSE}
+Freq(base3$Horas_de_trabajo_por_semana, breaks=nclass.Sturges(base3$Horas_de_trabajo_por_semana))
+``` 
+
+```{r message=FALSE}
+par(mfrow = c(2,2))
+hist(base3$Edad,main="Gráfica de edad")
+hist(base3$Número_de_dependientes,main="Gráfica de número de dependientes")
+hist(base3$Horas_de_trabajo_por_semana,main="Gráfica de horas de trabajo por semana")
+``` 
+
+## **Asimetría de variables cuantitativas**
+
+### Histogramas 
+```{r message=FALSE}
+par(mfrow = c(2,2))
+hist(base3$Edad, probability = T ,main="Histograma de probabilidad - variable edad")
+curve(dnorm(x, mean=46.44795, sd=11.38578),add=T,col="blue")
+hist(base3$Número_de_dependientes , probability = T, main="Histograma de probabilidad - variable número de dependientes")
+curve(dnorm(x, mean=2.496611,sd=1.629468),add=T,col="blue")
+hist(base3$Horas_de_trabajo_por_semana, probability = T,main="Histograma de probabilidad - variable horas de trabajo por semana")
+curve(dnorm(x, mean=51.06895, sd=15.24037),add=T,col="blue")
+``` 
+
+### Coeficiente de asimetría de Fisher
+
+```{r message=FALSE}
+Fisher.asi   = function(x) mean((x - mean(x,na.rm = T))^3,na.rm = T)/sd(x,na.rm = T)^3
+Fisher.asi(base3$Edad)
+``` 
+coeficiente de asimetría para la variable Edad
+
+```{r message=FALSE}
+Fisher.asi   = function(x) mean((x - mean(x,na.rm = T))^3,na.rm = T)/sd(x,na.rm = T)^3
+Fisher.asi(na.omit(base3$Número_de_dependientes))
+``` 
+coeficiente de asimetría para la variable Número de dependientes
+
+```{r message=FALSE}
+Fisher.asi   = function(x) mean((x - mean(x,na.rm = T))^3,na.rm = T)/sd(x,na.rm = T)^3
+Fisher.asi(base3$Horas_de_trabajo_por_semana)
+
+``` 
+coeficiente de asimetría para la variable Horas de trabajo por semana
+
+
+Se concluye que la **variable Edad es la más asimétrica**, ya que tanto el gráfico de frecuencia como la prueba de Fisher lo sustenta. Por otro lado, **la variable horas de trabajo por semana es la menos asimétrica** con un coeficiente de Fisher mayor a 1.
+
+## **Análisis de posición de variable: Horas de trabajo a la semana**
+
+### Gráficos
+```{r message=FALSE}
+par(mfrow = c(2,1))
+
+box1<-boxplot(base3$Horas_de_trabajo_por_semana, xlab="Horas_de_trabajo_por_semana",main="Diagrama de caja", horizontal = T)
+hist(base3$Horas_de_trabajo_por_semana, probability = T, main="Histograma de probabilidad - variable horas de trabajo por semana")
+curve(dnorm(x, mean=51.06895, sd=15.24037),add=T,col="blue")
+``` 
+
+```{r message=FALSE}
+outmin<-base3[base3$Horas_de_trabajo_por_semana <5 ,]
+head(outmin$Horas_de_trabajo_por_semana)
+mean(outmin$Horas_de_trabajo_por_semana)
+
+
+``` 
+Se muestra los extremos minimos de la variable horas de trabajo por semana, así como el promedio de estos valores extremos
+```{r message=FALSE}
+outmax<-base3[base3$Horas_de_trabajo_por_semana >92 ,]
+head(outmax$Horas_de_trabajo_por_semana)
+mean(outmax$Horas_de_trabajo_por_semana)
+
+```
+Se muestra los extremos maximos de la variable horas de trabajo por semana, así como el promedio de estos valores extremos
+
+
+## **Evaluación de normalidad de variables**
+
+### Variable Edad
+Histograma
+```{r message=FALSE}
+
+hist(base3$Edad, probability = T, main="Histograma de probabilidad - variable edad")
+curve(dnorm(x, mean=46.44795,sd=11.38578),add=T,col="blue")
+``` 
+Comparación de deciles
+```{r message=FALSE}
+deciles<-(0:10)/10
+
+Empiricoedad<-quantile(base3$Edad, deciles)
+Teoricoedad<-qnorm(deciles, mean=46.44795, sd=11.38578)
+rbind(Empiricoedad, Teoricoedad)
+
+plot(Teoricoedad, Empiricoedad, ylim=c(20,70), xlim=c(20,70))
+abline(0,1, col="red")
+``` 
+Test de normalidad
+```{r message=FALSE}
+shapiro.test(base3$Edad)
+
+ks.test(base3$Edad, "pnorm", mean = mean(base3$Edad), sd = sd(base3$Edad))
+``` 
+Se aplica el test de shapiro para evaluar normalidad obteniendo así un p value menor a 0.05, rechazando la hipotesis nula que por defecto asumía normalidad en la variable edad. Por lo tanto se acepta la hipotesis alterna la cual indica que **los datos de la variable edad no sigue un comportamiento normal**, así mismo se puede observar esta conclusión en los graficos de comparación de deciles e histograma.
+
+### Variable  horas de trabajo por semana
+Histograma
+```{r message=FALSE}
+
+hist(base3$Horas_de_trabajo_por_semana, probability = T, main="Histograma de probabilidad - variable ehoras de trabajo por semana")
+curve(dnorm(x, mean=51.06895,sd=15.24037),add=T,col="blue")
+``` 
+Comparación de deciles
+```{r message=FALSE}
+Empiricohoras<-quantile( base3$Horas_de_trabajo_por_semana, deciles)
+Teoricohoras<-qnorm(deciles, mean=51.06895, sd=15.24037)
+rbind(Empiricohoras, Teoricohoras)
+
+plot(Teoricohoras, Empiricohoras, ylim=c(20,80), xlim=c(20,80))
+abline(0,1, col="red")
+```
+Test de normalidad
+```{r message=FALSE}
+shapiro.test(base3$Horas_de_trabajo_por_semana)
+
+ks.test(base3$Horas_de_trabajo_por_semana, "pnorm", mean = mean(base3$Horas_de_trabajo_por_semana), sd = sd(base3$Horas_de_trabajo_por_semana))
+```
+Se aplica el test de shapiro para evaluar normalidad obteniendo así un p value menor a 0.05, rechazando la hipotesis nula que por defecto asumía normalidad en la variable horas de trabajo por semana. Por lo tanto se acepta la hipotesis alterna la cual indica que **los datos de la variable horas de trabajo por semana no sigue un comportamiento normal**, así mismo se puede observar esta conclusión en los graficos de comparación de deciles e histograma.
+
+
+## **Cálculo de Intervalos de confianza**
+### horas trabajadas por semana para mujeres
+```{r message=FALSE}
+z<- 1.96
+basehtmujer<-subset(base3,Sexo == "Mujer")
+mediahtmujer<-mean(basehtmujer$Horas_de_trabajo_por_semana)
+nmujer<- length(basehtmujer$Horas_de_trabajo_por_semana)
+desvmujer<-sd(basehtmujer$Horas_de_trabajo_por_semana)
+errorstmujer<- desvmujer/sqrt(nmujer)
+lim_infmujer<-mediahtmujer-(z*errorstmujer)
+lim_supmujer<-mediahtmujer+(z*errorstmujer)
+intervalo_mujer<-data.frame(nmujer, mediahtmujer, desvmujer, errorstmujer, lim_infmujer, lim_supmujer)
+intervalo_mujer
+```
+
+### horas trabajadas por semana para hombres
+```{r message=FALSE}
+z<- 1.96
+basehthombre<-subset(base3,Sexo == "Hombre")
+mediahthombre<-mean(basehthombre$Horas_de_trabajo_por_semana)
+nhombre<- length(basehthombre$Horas_de_trabajo_por_semana)
+desvhombre<-sd(basehthombre$Horas_de_trabajo_por_semana)
+errorsthombre<- desvmujer/sqrt(nhombre)
+lim_infhombre<-mediahthombre-(z*errorsthombre)
+lim_suphombre<-mediahthombre+(z*errorsthombre)
+intervalo_hombre<-data.frame(nhombre,mediahthombre,desvhombre, errorsthombre, lim_infhombre, lim_suphombre )
+intervalo_hombre
+```
+### Gráfico de intervalos de confianza
+```{r message=FALSE}
+##graficos
+base3_hdtps<-base3 %>%
+            group_by(Sexo) %>%
+            summarise(mean_hdtps = mean(Horas_de_trabajo_por_semana), sd_hdtps= sd(Horas_de_trabajo_por_semana), num =length(Horas_de_trabajo_por_semana)) %>%
+            mutate(len=1.96*sd_hdtps/sqrt(num))
+
+graficos <- ggplot(data= base3_hdtps, mapping = aes(x=Sexo, y=mean_hdtps,
+            ymin = mean_hdtps - len ,  ymax = mean_hdtps +len) )
+
+graficos<-graficos + geom_point(size=3.5) +
+    geom_errorbar(width = 0.2) +
+    labs(tittle="95% confidence interbal", y= "promedio")
+graficos
+```
+Según el cálculo de intervalos de confianza con un nivel de confianza del 95%, se concluye que si hay diferencia entre hombres y mujeres respecto a la variable horas de trabajo por semana, lo cual indica que los doctores hombres tiene más horas de trabajo por semana que las mujeres.
+
+## **Prueba de hipotesis, variable: número de dependientes**
+A continuación se busca probar si el número de dependientes por médico sigue siendo en promedio = 2, para ello se realiza una prueba de hipótesis de la variable **Número de dependientes** siendo:
+
+H0 = 2
+H1 ≠ 2
+
+### Histograma
+```{r message=FALSE}
+
+hist(na.omit(base3$Número_de_dependientes), probability = T)
+curve(dnorm(x, mean=2.496611,sd=1.629468),add=T,col="blue")
+``` 
+### Comparación de deciles
+```{r message=FALSE}
+Empiriconumdep<-quantile(na.omit(base3$Número_de_dependientes), probs=c(0,0.1,0.20,0.30,0.40, 0.5,0.60,0.70,0.8,0.90,1))
+Teoriconumdep<-qnorm(deciles, mean=2.496611, sd=1.629468)
+rbind(Empiriconumdep, Teoriconumdep )
+
+plot(Teoriconumdep, Empiriconumdep, ylim=c(0,6), xlim=c(0,6))
+abline(0,1, col="red")
+```
+### Test de normalidad
+```{r message=FALSE}
+shapiro.test(na.omit(base3$Número_de_dependientes))
+
+ks.test(na.omit(base3$Número_de_dependientes), "pnorm", mean = mean(na.omit(base3$Número_de_dependientes)), sd = sd(na.omit(base3$Número_de_dependientes)))
+```
+Se aplica el test de shapiro para evaluar normalidad obteniendo así un p value menor a 0.05, rechazando la hipotesis nula que por defecto asumía normalidad en la variable número de dependientes. Por lo tanto se acepta la hipotesis alterna la cual indica que **los datos de la variable número de dependientes no sigue un comportamiento normal**, así mismo se puede observar esta conclusión en los graficos de comparación de deciles e histograma.
+
+
+### Prueba de hipótesis
+```{r message=FALSE}
+t.test(na.omit(base3$Número_de_dependientes) , alternative="two.sided",
+       conf.level=0.95, mu=2)
+```
+
+
+Se rechaza la hipotesis nula y se acepta la hipótesis alterna, por lo tanto la media de horas de trabajo por semana ya no es de 2 horas.
+
+
+
